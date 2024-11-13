@@ -12,16 +12,19 @@ import java.net.URL;
 
 public class Client {
     private static final Logger log = Logger.getLogger(Client.class);
-    private static final String WEBHOOK_URL = "WEBHOOK_URL";
+    private static final String WEBHOOK_URL = "http://180.76.225.182:4567/webhook";
 
     public static void postService(String data) throws IOException {
         try {
-            final String urlString = System.getenv(WEBHOOK_URL);
-            log.debugf("WEBHOOK_URL: %s", urlString);
+//            final String urlString = System.getenv(WEBHOOK_URL);
+//            log.debugf("WEBHOOK_URL: %s", urlString);
 
-            if (urlString == null || urlString.isEmpty()) {
-                throw new IllegalArgumentException("Environment variable WEBHOOK_URL is not set or is empty.");
-            }
+            final String urlString = WEBHOOK_URL;
+
+
+//            if (urlString == null || urlString.isEmpty()) {
+//                throw new IllegalArgumentException("Environment variable WEBHOOK_URL is not set or is empty.");
+//            }
 
             URL url = URI.create(urlString).toURL();
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();

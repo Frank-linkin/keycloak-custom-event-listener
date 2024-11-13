@@ -33,14 +33,14 @@ public class CustomEventListenerProvider
         log.debugf("New %s Event", event.getType());
         log.debugf("onEvent-> %s", toString(event));
 
-        if (EventType.REGISTER.equals(event.getType())) {
+//        if (EventType.REGISTER.equals(event.getType())) {
 
             event.getDetails().forEach((key, value) -> log.debugf("%s : %s", key, value));
 
             RealmModel realm = this.model.getRealm(event.getRealmId());
             UserModel user = this.session.users().getUserById(realm, event.getUserId());
             sendUserData(user);
-        }
+//        }
 
     }
 
