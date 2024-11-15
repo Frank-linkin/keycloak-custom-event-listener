@@ -12,14 +12,14 @@ import java.net.URL;
 
 public class Client {
     private static final Logger log = Logger.getLogger(Client.class);
-    private static final String WEBHOOK_URL = "http://180.76.225.182:4567/webhook";
+    private static final String WEBHOOK_URL = "http://180.76.225.182:4567/";
 
-    public static void postService(String data) throws IOException {
+    public static void postService(String data, String eventName) throws IOException {
         try {
 //            final String urlString = System.getenv(WEBHOOK_URL);
 //            log.debugf("WEBHOOK_URL: %s", urlString);
 
-            final String urlString = WEBHOOK_URL;
+            final String urlString = WEBHOOK_URL + eventName;
 
 
 //            if (urlString == null || urlString.isEmpty()) {

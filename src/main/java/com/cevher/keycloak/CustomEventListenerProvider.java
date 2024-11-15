@@ -33,14 +33,37 @@ public class CustomEventListenerProvider
         log.debugf("New %s Event", event.getType());
         log.debugf("onEvent-> %s", toString(event));
 
-//        if (EventType.REGISTER.equals(event.getType())) {
+       if (EventType.REGISTER.equals(event.getType())) {
+           log.debugf("Registration" );
 
             event.getDetails().forEach((key, value) -> log.debugf("%s : %s", key, value));
 
             RealmModel realm = this.model.getRealm(event.getRealmId());
             UserModel user = this.session.users().getUserById(realm, event.getUserId());
-            sendUserData(user);
-//        }
+            sendUserData(user,"user-registration");
+        }
+
+       if (EventType.UPDATE_PROFILE.equals(event.getType())) {
+           log.debugf("UPDATE_PROFILE" );
+
+           event.getDetails().forEach((key, value) -> log.debugf("%s : %s", key, value));
+
+           RealmModel realm = this.model.getRealm(event.getRealmId());
+           UserModel user = this.session.users().getUserById(realm, event.getUserId());
+           sendUserData(user,"user-update");
+       }
+
+       if (EventType.DELETE_ACCOUNT.equals(event.getType())) {
+
+           log.debugf("DELETE_ACCOUNT" );
+
+
+           event.getDetails().forEach((key, value) -> log.debugf("%s : %s", key, value));
+
+           RealmModel realm = this.model.getRealm(event.getRealmId());
+           UserModel user = this.session.users().getUserById(realm, event.getUserId());
+           sendUserData(user,"user-delete");
+       }
 
     }
 
@@ -51,16 +74,9 @@ public class CustomEventListenerProvider
         log.debugf("Resource type: %s", adminEvent.getResourceType());
         log.debugf("Operation type: %s", adminEvent.getOperationType());
         log.debugf("AdminEvent.toString(): %s", toString(adminEvent));
-        if (ResourceType.USER.equals(adminEvent.getResourceType())
-                && OperationType.CREATE.equals(adminEvent.getOperationType())) {
-            RealmModel realm = this.model.getRealm(adminEvent.getRealmId());
-            UserModel user = this.session.users().getUserById(realm, adminEvent.getResourcePath().substring(6));
-
-            sendUserData(user);
-        }
     }
 
-    private void sendUserData(UserModel user) {
+    private void sendUserData(UserModel user, String eventName) {
         String data = """
                 {
                     "id": "%s",
@@ -71,7 +87,7 @@ public class CustomEventListenerProvider
                 }
                 """.formatted(user.getId(), user.getEmail(), user.getUsername(), user.getFirstName(), user.getLastName());
         try {
-            Client.postService(data);
+            Client.postService(data, eventName);
             log.debug("A new user has been created and post API");
         } catch (Exception e) {
             log.errorf("Failed to call API: %s", e);
