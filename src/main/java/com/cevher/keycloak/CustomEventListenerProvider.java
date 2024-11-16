@@ -1,12 +1,13 @@
 package com.cevher.keycloak;
 
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import org.jboss.logging.Logger;
 import org.keycloak.events.Event;
 import org.keycloak.events.EventListenerProvider;
 import org.keycloak.events.EventType;
 import org.keycloak.events.admin.AdminEvent;
-import org.keycloak.events.admin.OperationType;
-import org.keycloak.events.admin.ResourceType;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RealmProvider;
@@ -86,8 +87,15 @@ public class CustomEventListenerProvider
                     "lastName": "%s"
                 }
                 """.formatted(user.getId(), user.getEmail(), user.getUsername(), user.getFirstName(), user.getLastName());
+        log.debug("data =" + data);
+
+
+        Gson gson = new GsonBuilder().excludeFieldsWithoutExposeAnnotation().create();
+        String userJson = gson.toJson(user.getAttributes());
+        log.debug("user =" + userJson);
+        log.debugf("userAttributes = %s", user.getAttributes());
         try {
-            Client.postService(data, eventName);
+            Client.postService(userJson, eventName);
             log.debug("A new user has been created and post API");
         } catch (Exception e) {
             log.errorf("Failed to call API: %s", e);
