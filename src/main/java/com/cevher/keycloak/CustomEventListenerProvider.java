@@ -22,6 +22,11 @@ import java.util.stream.Collectors;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 
 public class CustomEventListenerProvider
         implements EventListenerProvider {
@@ -42,37 +47,36 @@ public class CustomEventListenerProvider
         log.debugf("New %s Event", event.getType());
         log.debugf("onEvent-> %s", toString(event));
 
-       if (EventType.REGISTER.equals(event.getType())) {
-           log.debugf("Registration" );
+        if (EventType.REGISTER.equals(event.getType())) {
+            log.debugf("Registration");
 
             event.getDetails().forEach((key, value) -> log.debugf("%s : %s", key, value));
 
             RealmModel realm = this.model.getRealm(event.getRealmId());
             UserModel user = this.session.users().getUserById(realm, event.getUserId());
-            sendUserData(user,"user-registration");
+            sendUserData(user, "user-registration");
         }
 
-       if (EventType.UPDATE_PROFILE.equals(event.getType())) {
-           log.debugf("UPDATE_PROFILE" );
+        if (EventType.UPDATE_PROFILE.equals(event.getType())) {
+            log.debugf("UPDATE_PROFILE");
 
-           event.getDetails().forEach((key, value) -> log.debugf("%s : %s", key, value));
+            event.getDetails().forEach((key, value) -> log.debugf("%s : %s", key, value));
 
-           RealmModel realm = this.model.getRealm(event.getRealmId());
-           UserModel user = this.session.users().getUserById(realm, event.getUserId());
-           sendUserData(user,"user-update");
-       }
+            RealmModel realm = this.model.getRealm(event.getRealmId());
+            UserModel user = this.session.users().getUserById(realm, event.getUserId());
+            sendUserData(user, "user-update");
+        }
 
-       if (EventType.DELETE_ACCOUNT.equals(event.getType())) {
+        if (EventType.DELETE_ACCOUNT.equals(event.getType())) {
 
-           log.debugf("DELETE_ACCOUNT" );
+            log.debugf("DELETE_ACCOUNT");
 
+            event.getDetails().forEach((key, value) -> log.debugf("%s : %s", key, value));
 
-           event.getDetails().forEach((key, value) -> log.debugf("%s : %s", key, value));
-
-           RealmModel realm = this.model.getRealm(event.getRealmId());
-           UserModel user = this.session.users().getUserById(realm, event.getUserId());
-           sendUserData(user,"user-delete");
-       }
+            RealmModel realm = this.model.getRealm(event.getRealmId());
+            UserModel user = this.session.users().getUserById(realm, event.getUserId());
+            sendUserData(user, "user-delete");
+        }
 
     }
 
@@ -84,28 +88,100 @@ public class CustomEventListenerProvider
         log.debugf("Operation type: %s", adminEvent.getOperationType());
         log.debugf("AdminEvent.toString(): %s", toString(adminEvent));
 
-        
-
         log.infof(" : %s", adminEvent.getRepresentation());
 
-        if (adminEvent.getResourceType().name().equals("USER_PROFILE") && 
-            adminEvent.getOperationType().name().equals("UPDATE")) {
-            
+        if (adminEvent.getResourceType().name().equals("USER_PROFILE") &&
+                adminEvent.getOperationType().name().equals("UPDATE")) {
+
             RealmModel realm = this.model.getRealm(adminEvent.getRealmId());
-            
+
             // 获取所有语言的覆盖内容
             Map<String, Map<String, String>> allOverrides = getAllRealmLocalizationOverrides(realm);
-            
+
             // 打印结果
             allOverrides.forEach((locale, overrides) -> {
                 log.infof("Locale: %s", locale);
-                overrides.forEach((key, value) -> 
-                    log.infof("  Key: %s, Value: %s", key, value));
+                overrides.forEach((key, value) -> log.infof("  Key: %s, Value: %s", key, value));
             });
-        }
-    }
 
-    
+            JsonArray replacedDisplayName = new JsonArray();
+            try {
+                // 获取representation中的配置信息
+                String representation = adminEvent.getRepresentation();
+
+                // 解析JSON配置
+                JsonObject config = new Gson().fromJson(representation, JsonObject.class);
+
+                if (!config.has("attributes")) {
+                    log.infof("No attributes found in the configuration");
+                    return;
+                }
+
+                JsonArray attributes = config.getAsJsonArray("attributes");
+
+                
+                // 遍历所有属性
+                for (JsonElement attributeElement : attributes) {
+                    JsonObject attribute = attributeElement.getAsJsonObject();
+
+                    // 获取displayName属性
+                    if (!attribute.has("displayName")) {
+                        continue;
+                    }
+                    String displayName = attribute.get("displayName").getAsString();
+                    // 检查displayName是否是变量格式 (以${开头})
+                    if (displayName.startsWith("${") && displayName.endsWith("}")) {
+                        // 提取变量名
+                        String key = displayName.substring(2, displayName.length() - 1);
+
+                        // 获取中文翻译 (使用zh或zh-CN locale)
+                        String chineseTranslation = null;
+                        Map<String, String> zhOverrides = allOverrides.get("zh");
+                        if (zhOverrides != null) {
+                            chineseTranslation = zhOverrides.get(key);
+                        }
+                        if (chineseTranslation == null) {
+                            Map<String, String> zhCNOverrides = allOverrides.get("zh-CN");
+                            if (zhCNOverrides != null) {
+                                chineseTranslation = zhCNOverrides.get(key);
+                            }
+                        }
+
+                        // 如果找到中文翻译，则更新displayName
+                        if (chineseTranslation != null) {
+                            attribute.addProperty("displayName", chineseTranslation);
+                            log.infof("Updated displayName for attribute %s: %s",
+                                    attribute.get("name").getAsString(),
+                                    chineseTranslation);
+                        }
+                        replacedDisplayName.add(attribute);
+                    }
+
+                    if (attribute.get("name").getAsString().equals("email")) {
+                        attribute.addProperty("displayName", "邮箱");
+                    }
+
+                    if (attribute.get("name").getAsString().equals("firstName")) {
+                        attribute.addProperty("displayName", "名字");
+                    }   
+
+                    if (attribute.get("name").getAsString().equals("lastName")) {
+                        attribute.addProperty("displayName", "姓氏");
+                    }   
+
+                    if (attribute.get("name").getAsString().equals("username")) {
+                        attribute.addProperty("displayName", "用户名");
+                    }
+
+                    log.infof("Updated User Profile attributes: %s", replacedDisplayName);
+                }
+
+            } catch (Exception e) {
+                log.errorf("Error getting user profile configuration: %s", e.getMessage());
+            }
+        }
+
+    }
 
     private void sendUserData(UserModel user, String eventName) {
         String data = """
@@ -116,9 +192,9 @@ public class CustomEventListenerProvider
                     "firstName": "%s",
                     "lastName": "%s"
                 }
-                """.formatted(user.getId(), user.getEmail(), user.getUsername(), user.getFirstName(), user.getLastName());
+                """.formatted(user.getId(), user.getEmail(), user.getUsername(), user.getFirstName(),
+                user.getLastName());
         log.debug("data =" + data);
-
 
         Gson gson = new GsonBuilder().excludeFieldsWithoutExposeAnnotation().create();
         String userJson = gson.toJson(user.getAttributes());
@@ -131,8 +207,6 @@ public class CustomEventListenerProvider
             log.errorf("Failed to call API: %s", e);
         }
     }
-
-
 
     @Override
     public void close() {
@@ -197,7 +271,7 @@ public class CustomEventListenerProvider
         try {
             // 直接使用locale字符串
             Map<String, String> translations = realm.getRealmLocalizationTextsByLocale(locale);
-            
+
             if (translations != null && !translations.isEmpty()) {
                 log.infof("Found %d overrides for locale %s", translations.size(), locale);
                 translations.forEach((key, value) -> {
@@ -207,10 +281,10 @@ public class CustomEventListenerProvider
             } else {
                 log.infof("No overrides found for locale %s", locale);
             }
-            
+
         } catch (Exception e) {
-            log.errorf("Error getting realm localization overrides for locale %s: %s", 
-                      locale, e.getMessage());
+            log.errorf("Error getting realm localization overrides for locale %s: %s",
+                    locale, e.getMessage());
         }
         return overrides;
     }
@@ -218,12 +292,12 @@ public class CustomEventListenerProvider
     // 获取所有语言的覆盖内容
     private Map<String, Map<String, String>> getAllRealmLocalizationOverrides(RealmModel realm) {
         Map<String, Map<String, String>> allOverrides = new HashMap<>();
-        
+
         try {
             // 获取所有支持的语言
             Set<String> supportedLocales = realm.getSupportedLocalesStream().collect(Collectors.toSet());
             log.infof("Checking overrides for locales: %s", supportedLocales);
-            
+
             // 对每种语言获取其覆盖内容
             for (String locale : supportedLocales) {
                 Map<String, String> localeOverrides = getRealmLocalizationOverrides(realm, locale);
@@ -231,11 +305,11 @@ public class CustomEventListenerProvider
                     allOverrides.put(locale, localeOverrides);
                 }
             }
-            
+
         } catch (Exception e) {
             log.errorf("Error getting all realm localization overrides: %s", e.getMessage());
         }
-        
+
         return allOverrides;
     }
 
