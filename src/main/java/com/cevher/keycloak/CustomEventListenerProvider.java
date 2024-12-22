@@ -1,8 +1,5 @@
 package com.cevher.keycloak;
 
-
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import org.jboss.logging.Logger;
 import org.keycloak.events.Event;
 import org.keycloak.events.EventListenerProvider;
@@ -12,8 +9,19 @@ import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RealmProvider;
 import org.keycloak.models.UserModel;
+import org.keycloak.theme.Theme;
+import org.keycloak.theme.ThemeProvider;
 
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.StringJoiner;
+import java.util.stream.Collectors;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 public class CustomEventListenerProvider
         implements EventListenerProvider {
@@ -75,7 +83,29 @@ public class CustomEventListenerProvider
         log.debugf("Resource type: %s", adminEvent.getResourceType());
         log.debugf("Operation type: %s", adminEvent.getOperationType());
         log.debugf("AdminEvent.toString(): %s", toString(adminEvent));
+
+        
+
+        log.infof(" : %s", adminEvent.getRepresentation());
+
+        if (adminEvent.getResourceType().name().equals("USER_PROFILE") && 
+            adminEvent.getOperationType().name().equals("UPDATE")) {
+            
+            RealmModel realm = this.model.getRealm(adminEvent.getRealmId());
+            
+            // 获取所有语言的覆盖内容
+            Map<String, Map<String, String>> allOverrides = getAllRealmLocalizationOverrides(realm);
+            
+            // 打印结果
+            allOverrides.forEach((locale, overrides) -> {
+                log.infof("Locale: %s", locale);
+                overrides.forEach((key, value) -> 
+                    log.infof("  Key: %s, Value: %s", key, value));
+            });
+        }
     }
+
+    
 
     private void sendUserData(UserModel user, String eventName) {
         String data = """
@@ -95,12 +125,14 @@ public class CustomEventListenerProvider
         log.debug("user =" + userJson);
         log.debugf("userAttributes = %s", user.getAttributes());
         try {
-            Client.postService(userJson, eventName);
+            Client.sendUserData(userJson, eventName);
             log.debug("A new user has been created and post API");
         } catch (Exception e) {
             log.errorf("Failed to call API: %s", e);
         }
     }
+
+
 
     @Override
     public void close() {
@@ -158,6 +190,53 @@ public class CustomEventListenerProvider
         }
 
         return joiner.toString();
+    }
+
+    private Map<String, String> getRealmLocalizationOverrides(RealmModel realm, String locale) {
+        Map<String, String> overrides = new HashMap<>();
+        try {
+            // 直接使用locale字符串
+            Map<String, String> translations = realm.getRealmLocalizationTextsByLocale(locale);
+            
+            if (translations != null && !translations.isEmpty()) {
+                log.infof("Found %d overrides for locale %s", translations.size(), locale);
+                translations.forEach((key, value) -> {
+                    log.infof("Override - Key: %s, Value: %s", key, value);
+                    overrides.put(key, value);
+                });
+            } else {
+                log.infof("No overrides found for locale %s", locale);
+            }
+            
+        } catch (Exception e) {
+            log.errorf("Error getting realm localization overrides for locale %s: %s", 
+                      locale, e.getMessage());
+        }
+        return overrides;
+    }
+
+    // 获取所有语言的覆盖内容
+    private Map<String, Map<String, String>> getAllRealmLocalizationOverrides(RealmModel realm) {
+        Map<String, Map<String, String>> allOverrides = new HashMap<>();
+        
+        try {
+            // 获取所有支持的语言
+            Set<String> supportedLocales = realm.getSupportedLocalesStream().collect(Collectors.toSet());
+            log.infof("Checking overrides for locales: %s", supportedLocales);
+            
+            // 对每种语言获取其覆盖内容
+            for (String locale : supportedLocales) {
+                Map<String, String> localeOverrides = getRealmLocalizationOverrides(realm, locale);
+                if (!localeOverrides.isEmpty()) {
+                    allOverrides.put(locale, localeOverrides);
+                }
+            }
+            
+        } catch (Exception e) {
+            log.errorf("Error getting all realm localization overrides: %s", e.getMessage());
+        }
+        
+        return allOverrides;
     }
 
 }

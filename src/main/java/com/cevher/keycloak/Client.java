@@ -14,7 +14,7 @@ public class Client {
     private static final Logger log = Logger.getLogger(Client.class);
     private static final String WEBHOOK_URL = "http://180.76.225.182:4567/";
 
-    public static void postService(String data, String eventName) throws IOException {
+    public static void sendUserData(String data, String eventName) throws IOException {
         try {
 //            final String urlString = System.getenv(WEBHOOK_URL);
 //            log.debugf("WEBHOOK_URL: %s", urlString);
@@ -51,6 +51,49 @@ public class Client {
             conn.disconnect();
         } catch (IOException e) {
             throw new IOException("Failed to post service: " + e.getMessage(), e);
+        }
+    }
+
+    public static void updateUserProfile(String profileData, String realm) throws IOException {
+        try {
+            // 构建URL
+            final String urlString = WEBHOOK_URL + "p/user-profile/update-user-profile";
+            URL url = URI.create(urlString).toURL();
+            
+            // 设置连接
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setDoOutput(true);
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/json; utf-8");
+            
+            // 添加realm到请求头
+            conn.setRequestProperty("X-Realm", realm);
+            
+            // 发送数据
+            try (OutputStream os = conn.getOutputStream()) {
+                byte[] input = profileData.getBytes("utf-8");
+                os.write(input, 0, input.length);
+                os.flush();
+            }
+
+            // 处理响应
+            int responseCode = conn.getResponseCode();
+            if (responseCode != HttpURLConnection.HTTP_OK && responseCode != HttpURLConnection.HTTP_CREATED) {
+                throw new RuntimeException("Failed : HTTP error code : " + responseCode);
+            }
+
+            // 读取响应
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                String output;
+                log.debugf("Output from Server .... \n");
+                while ((output = br.readLine()) != null) {
+                    log.debugf("Input from Server: %s", output);
+                }
+            }
+            
+            conn.disconnect();
+        } catch (IOException e) {
+            throw new IOException("Failed to update user profile: " + e.getMessage(), e);
         }
     }
 }
