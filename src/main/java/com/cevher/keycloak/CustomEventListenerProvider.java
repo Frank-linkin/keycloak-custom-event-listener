@@ -9,12 +9,7 @@ import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RealmProvider;
 import org.keycloak.models.UserModel;
-import org.keycloak.theme.Theme;
-import org.keycloak.theme.ThemeProvider;
-
-import java.io.IOException;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
@@ -22,10 +17,8 @@ import java.util.stream.Collectors;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.JsonElement;
 
 import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 public class CustomEventListenerProvider
@@ -96,15 +89,13 @@ public class CustomEventListenerProvider
             RealmModel realm = this.model.getRealm(adminEvent.getRealmId());
 
             // 获取所有语言的覆盖内容
-            Map<String, Map<String, String>> allOverrides = getAllRealmLocalizationOverrides(realm);
+            Map<String, Map<String, String>> localizationMap = getAllRealmLocalizationOverrides(realm);
 
             // 打印结果
-            allOverrides.forEach((locale, overrides) -> {
-                log.infof("Locale: %s", locale);
-                overrides.forEach((key, value) -> log.infof("  Key: %s, Value: %s", key, value));
-            });
-
-            JsonArray replacedDisplayName = new JsonArray();
+            Gson gson = new Gson();
+            String localizationJson = gson.toJson(localizationMap);
+            log.infof("Localization Map: %s", localizationJson);
+            
             try {
                 // 获取representation中的配置信息
                 String representation = adminEvent.getRepresentation();
@@ -117,65 +108,12 @@ public class CustomEventListenerProvider
                     return;
                 }
 
+
                 JsonArray attributes = config.getAsJsonArray("attributes");
-
-                
-                // 遍历所有属性
-                for (JsonElement attributeElement : attributes) {
-                    JsonObject attribute = attributeElement.getAsJsonObject();
-
-                    // 获取displayName属性
-                    if (!attribute.has("displayName")) {
-                        continue;
-                    }
-                    String displayName = attribute.get("displayName").getAsString();
-                    // 检查displayName是否是变量格式 (以${开头})
-                    if (displayName.startsWith("${") && displayName.endsWith("}")) {
-                        // 提取变量名
-                        String key = displayName.substring(2, displayName.length() - 1);
-
-                        // 获取中文翻译 (使用zh或zh-CN locale)
-                        String chineseTranslation = null;
-                        Map<String, String> zhOverrides = allOverrides.get("zh");
-                        if (zhOverrides != null) {
-                            chineseTranslation = zhOverrides.get(key);
-                        }
-                        if (chineseTranslation == null) {
-                            Map<String, String> zhCNOverrides = allOverrides.get("zh-CN");
-                            if (zhCNOverrides != null) {
-                                chineseTranslation = zhCNOverrides.get(key);
-                            }
-                        }
-
-                        // 如果找到中文翻译，则更新displayName
-                        if (chineseTranslation != null) {
-                            attribute.addProperty("displayName", chineseTranslation);
-                            log.infof("Updated displayName for attribute %s: %s",
-                                    attribute.get("name").getAsString(),
-                                    chineseTranslation);
-                        }
-                        replacedDisplayName.add(attribute);
-                    }
-
-                    if (attribute.get("name").getAsString().equals("email")) {
-                        attribute.addProperty("displayName", "邮箱");
-                    }
-
-                    if (attribute.get("name").getAsString().equals("firstName")) {
-                        attribute.addProperty("displayName", "名字");
-                    }   
-
-                    if (attribute.get("name").getAsString().equals("lastName")) {
-                        attribute.addProperty("displayName", "姓氏");
-                    }   
-
-                    if (attribute.get("name").getAsString().equals("username")) {
-                        attribute.addProperty("displayName", "用户名");
-                    }
-
-                    log.infof("Updated User Profile attributes: %s", replacedDisplayName);
-                }
-
+                // 使用Gson将attributes数组转换为JSON字符串并打印
+                String attributesJson = new Gson().toJson(attributes);
+                log.infof("User Profile Attributes: %s", attributesJson);
+                Client.updateUserProfile(attributes, realm.getId(), localizationMap);
             } catch (Exception e) {
                 log.errorf("Error getting user profile configuration: %s", e.getMessage());
             }
